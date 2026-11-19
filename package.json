@@ -1,0 +1,14 @@
+{
+  "name": "shiguang-yuni",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "诗光与你 — 以邀请码同席的猜诗小游戏",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test --test-isolation=none test/game.test.js test/palettes.test.js test/api.test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

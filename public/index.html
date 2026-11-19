@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#eadcd6">
+  <meta name="description" content="诗光与你：以邀请码同席，猜一句五言或七言。一字一光，猜中的人接住下一束光。">
+  <title>诗光与你 · 一字一光</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <svg class="svg-sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="i-copy" viewBox="0 0 24 24">
+      <rect x="8" y="8" width="11" height="11" rx="2"></rect>
+      <path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"></path>
+    </symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24">
+      <path d="M5 12h13M13 6l6 6-6 6"></path>
+    </symbol>
+    <symbol id="i-help" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="9"></circle>
+      <path d="M9.6 9a2.5 2.5 0 1 1 3.4 2.3c-.7.3-1 .9-1 1.7v.3"></path>
+      <path d="M12 17h.01"></path>
+    </symbol>
+    <symbol id="i-door" viewBox="0 0 24 24">
+      <path d="M10 4H5v16h5"></path>
+      <path d="M14 8l4 4-4 4M18 12H9"></path>
+    </symbol>
+    <symbol id="i-shuffle" viewBox="0 0 24 24">
+      <path d="M4 7h3l10 10h3M4 17h3l10-10h3"></path>
+      <path d="M17 4l3 3-3 3M17 14l3 3-3 3"></path>
+    </symbol>
+    <symbol id="i-seal" viewBox="0 0 24 24">
+      <rect x="3.5" y="3.5" width="17" height="17" rx="3"></rect>
+      <path d="M8 8.5h8M8 12h8M8 15.5h5"></path>
+    </symbol>
+    <symbol id="i-check" viewBox="0 0 24 24">
+      <path d="M5 12.5l4.5 4.5L19 7"></path>
+    </symbol>
+  </svg>
+
+  <div class="bg-layer" aria-hidden="true">
+    <div class="wash"></div>
+    <div class="sun"></div>
+    <div class="grain"></div>
+    <div class="vert-note">一&nbsp;字&nbsp;一&nbsp;光</div>
+    <div class="corner-line"></div>
+  </div>
+
+  <div class="app">
+    <section id="screen-home" class="screen home">
+      <div class="home-grid">
+        <div class="home-copy">
+          <div class="brand-eyebrow">
+            <span class="seal-mark">诗</span>
+            <span class="brand-en">POEMS &amp; YOU</span>
+          </div>
+          <h1 class="hero-title" aria-label="诗光与你">
+            <span>诗</span><span>光</span><span>与</span><span>你</span>
+          </h1>
+
+          <div class="home-legend" aria-label="猜字规则">
+            <div class="legend-item">
+              <span class="mini-tile absent">×</span>
+              <span><b>无此字</b><em>谜底里没有它</em></span>
+            </div>
+            <div class="legend-item">
+              <span class="mini-tile present">◐</span>
+              <span><b>有字错位</b><em>有它，但不在这一格</em></span>
+            </div>
+            <div class="legend-item">
+              <span class="mini-tile correct">✓</span>
+              <span><b>字位皆对</b><em>这一格，就是它</em></span>
+            </div>
+          </div>
+
+          <blockquote class="home-quote">
+            <span>晚来天欲雪，能饮一杯无。</span>
+            <cite>唐 · 白居易《问刘十九》</cite>
+          </blockquote>
+        </div>
+
+        <div class="home-card paper-card">
+          <div class="card-topline">
+            <span class="small-caps">入 席</span>
+            <span class="soft-note">以邀请码相认</span>
+          </div>
+
+          <form id="join-form" class="stack" novalidate>
+            <label class="field" for="join-name">
+              <span class="field-label">雅号</span>
+              <input id="join-name" name="name" type="text" maxlength="12" autocomplete="nickname"
+                     placeholder="怎么称呼你" aria-describedby="join-error">
+            </label>
+            <label class="field" for="join-code">
+              <span class="field-label">邀请码</span>
+              <input id="join-code" name="code" type="text" maxlength="6" autocomplete="off"
+                     spellcheck="false" placeholder="四位邀请码" class="code-input">
+            </label>
+            <p id="join-error" class="form-error" role="alert"></p>
+            <button type="submit" class="btn primary wide" id="join-submit">
+              <span>入席</span>
+              <svg class="icon"><use href="#i-arrow"></use></svg>
+            </button>
+          </form>
+
+          <div class="or-rule"><span>或者</span></div>
+
+          <button type="button" id="create-room" class="btn ghost wide">新开一席</button>
+          <button type="button" id="play-alone" class="text-link">
+            一个人先玩 · 请诗灵出题
+            <svg class="icon"><use href="#i-arrow"></use></svg>
+          </button>
+
+          <p class="privacy-note">无需注册，名字只留在这一席。</p>
+        </div>
+      </div>
+
+      <footer class="home-foot">
+        <button type="button" id="home-help" class="foot-link">怎么玩</button>
+      </footer>
+    </section>
+
+    <section id="screen-room" class="screen room" hidden>
+      <header class="topbar">
+        <button type="button" id="brand-home" class="brand-mini" aria-label="回到首页">
+          <span class="seal-mark small">诗</span>
+          <span class="brand-name">诗光与你</span>
+        </button>
+        <div class="top-actions">
+          <button type="button" id="copy-code" class="code-chip" title="复制邀请码与入席链接">
+            <span class="code-label">邀请码</span>
+            <b id="room-code">----</b>
+            <svg class="icon tiny"><use href="#i-copy"></use></svg>
+          </button>
+          <button type="button" id="help-btn" class="icon-btn" aria-label="怎么玩" title="怎么玩">
+            <svg class="icon"><use href="#i-help"></use></svg>
+          </button>
+          <button type="button" id="leave-btn" class="icon-btn leave-btn" aria-label="离席" title="离席">
+            <svg class="icon"><use href="#i-door"></use></svg>
+            <span>离席</span>
+          </button>
+        </div>
+      </header>
+
+      <div id="connection-bar" class="connection-bar" hidden>
+        <span class="pulse-dot"></span>
+        <span id="connection-text">连线中…</span>
+      </div>
+
+      <main class="room-layout">
+        <section id="stage" class="stage paper-card" aria-live="polite"></section>
+
+        <aside class="sidebar">
+          <section class="panel paper-card players-panel">
+            <div class="panel-head">
+              <h2>席间</h2>
+              <span id="player-count" class="panel-count">0 人</span>
+            </div>
+            <div id="players-list" class="players-list"></div>
+            <p id="host-hint" class="panel-note"></p>
+          </section>
+
+          <section id="events-panel" class="panel paper-card events-panel">
+            <div class="panel-head">
+              <h2>席间小事</h2>
+              <span class="panel-count">此刻</span>
+            </div>
+            <ol id="events-list" class="events-list"></ol>
+          </section>
+
+          <section id="palette-panel" class="panel paper-card palette-panel">
+            <div class="panel-head">
+              <h2>色卡</h2>
+              <span id="palette-name" class="panel-count"></span>
+            </div>
+            <div id="palette-swatches" class="palette-swatches"></div>
+            <p class="panel-note">每开一局，换一组光。</p>
+          </section>
+        </aside>
+      </main>
+    </section>
+  </div>
+
+  <div id="color-veil" class="color-veil" aria-hidden="true"></div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <div id="modal-root" class="modal-root" aria-hidden="true"></div>
+
+  <noscript>
+    <div class="noscript">这个游戏需要 JavaScript 才能落子。</div>
+  </noscript>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

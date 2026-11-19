@@ -1,0 +1,12 @@
+# Render Blueprint: free Web Service, no credit card.
+# Connect the repository, choose "New > Blueprint", and Render reads this file.
+services:
+  - type: web
+    name: shiguang
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
