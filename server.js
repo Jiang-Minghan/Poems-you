@@ -4,7 +4,7 @@ import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { sanitizeCouplet, markCouplet, coupletKey } from './public/shared.js';
+import { sanitizePoem, sanitizeCouplet, markCouplet, coupletKey } from './public/shared.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(HERE, 'public');
@@ -489,7 +489,7 @@ export async function createGameServer(options = {}) {
     addEvent(room, 'host', `${candidates[0].name} 接过了出题权`);
   }
 
-  function finishRound(room) {
+  function finishRound(room, { keepHost = false } = {}) {
     if (room.round.status !== 'playing') return false;
     room.round.status = 'revealed';
     room.round.endedAt = now();
@@ -503,7 +503,7 @@ export async function createGameServer(options = {}) {
     } else {
       room.round.winnerId = null;
       addEvent(room, 'end', '本局结束，无人猜中');
-      ensureHostOnline(room);
+      if (!keepHost) ensureHostOnline(room);
     }
     room.updatedAt = now();
     return true;
@@ -740,30 +740,53 @@ export async function createGameServer(options = {}) {
         if (room.round.outcomes.has(player.id)) {
           throw new HttpError(409, 'finished', '你已经结束本局了。');
         }
-        const cleaned = sanitizeCouplet(body.upper, body.lower);
-        if (cleaned.invalid) {
-          throw new HttpError(400, 'invalid_chars', '上下句都只收汉字，把诗句再洗一洗。', {
-            upper: cleaned.upper.text,
-            lower: cleaned.lower.text,
-          });
-        }
         const len = room.round.length;
-        if (cleaned.upper.count !== len) {
-          throw new HttpError(400, 'wrong_length', `上句要正好 ${len} 个字，你给了 ${cleaned.upper.count} 个。`, {
-            line: 'upper',
-            cleaned: cleaned.upper.text,
-            expected: len,
-          });
+        let upper;
+        let lower;
+        let removed;
+        if (typeof body.text === 'string') {
+          const whole = sanitizePoem(body.text);
+          if (whole.invalid) {
+            throw new HttpError(400, 'invalid_chars', '整联都只收汉字，把诗句再洗一洗。', {
+              cleaned: whole.text,
+            });
+          }
+          if (whole.count !== len * 2) {
+            throw new HttpError(400, 'wrong_length', `整联要 ${len * 2} 个字（上下句各 ${len}），你给了 ${whole.count} 个。`, {
+              cleaned: whole.text,
+              expected: len * 2,
+            });
+          }
+          const chars = Array.from(whole.text);
+          upper = chars.slice(0, len).join('');
+          lower = chars.slice(len).join('');
+          removed = whole.removed;
+        } else {
+          const cleaned = sanitizeCouplet(body.upper, body.lower);
+          if (cleaned.invalid) {
+            throw new HttpError(400, 'invalid_chars', '上下句都只收汉字，把诗句再洗一洗。', {
+              upper: cleaned.upper.text,
+              lower: cleaned.lower.text,
+            });
+          }
+          if (cleaned.upper.count !== len) {
+            throw new HttpError(400, 'wrong_length', `上句要正好 ${len} 个字，你给了 ${cleaned.upper.count} 个。`, {
+              line: 'upper',
+              cleaned: cleaned.upper.text,
+              expected: len,
+            });
+          }
+          if (cleaned.lower.count !== len) {
+            throw new HttpError(400, 'wrong_length', `下句要正好 ${len} 个字，你给了 ${cleaned.lower.count} 个。`, {
+              line: 'lower',
+              cleaned: cleaned.lower.text,
+              expected: len,
+            });
+          }
+          upper = cleaned.upper.text;
+          lower = cleaned.lower.text;
+          removed = cleaned.removed;
         }
-        if (cleaned.lower.count !== len) {
-          throw new HttpError(400, 'wrong_length', `下句要正好 ${len} 个字，你给了 ${cleaned.lower.count} 个。`, {
-            line: 'lower',
-            cleaned: cleaned.lower.text,
-            expected: len,
-          });
-        }
-        const upper = cleaned.upper.text;
-        const lower = cleaned.lower.text;
         const key = coupletKey(upper, lower);
         if (room.round.guesses.some(g => g.playerId === player.id
           && coupletKey(g.upper, g.lower) === key)) {
@@ -800,7 +823,7 @@ export async function createGameServer(options = {}) {
             marksLower: marked.lower,
             correct: won,
             roundEnded: room.round.status === 'revealed',
-            cleanedRemoved: cleaned.removed,
+            cleanedRemoved: removed,
           },
         });
       }
@@ -831,32 +854,52 @@ export async function createGameServer(options = {}) {
         }
         const length = Number(body.length);
         if (length !== 5 && length !== 7) throw new HttpError(400, 'bad_length', '先选五言或七言。');
-        const cleaned = sanitizeCouplet(body.upper, body.lower);
-        if (cleaned.invalid) {
-          throw new HttpError(400, 'invalid_chars', '上下句都只能有汉字。', {
-            upper: cleaned.upper.text,
-            lower: cleaned.lower.text,
-          });
+        let upper;
+        let lower;
+        if (typeof body.text === 'string') {
+          const whole = sanitizePoem(body.text);
+          if (whole.invalid) {
+            throw new HttpError(400, 'invalid_chars', '谜底只能有汉字。', { cleaned: whole.text });
+          }
+          if (whole.count !== length * 2) {
+            throw new HttpError(400, 'wrong_length', `整联要 ${length * 2} 个字（上下句各 ${length}），现在是 ${whole.count} 个。`, {
+              cleaned: whole.text,
+              expected: length * 2,
+            });
+          }
+          const chars = Array.from(whole.text);
+          upper = chars.slice(0, length).join('');
+          lower = chars.slice(length).join('');
+        } else {
+          const cleaned = sanitizeCouplet(body.upper, body.lower);
+          if (cleaned.invalid) {
+            throw new HttpError(400, 'invalid_chars', '上下句都只能有汉字。', {
+              upper: cleaned.upper.text,
+              lower: cleaned.lower.text,
+            });
+          }
+          if (cleaned.upper.count !== length) {
+            throw new HttpError(400, 'wrong_length', `上句要正好 ${length} 个字，现在是 ${cleaned.upper.count} 个。`, {
+              line: 'upper',
+              cleaned: cleaned.upper.text,
+              expected: length,
+            });
+          }
+          if (cleaned.lower.count !== length) {
+            throw new HttpError(400, 'wrong_length', `下句要正好 ${length} 个字，现在是 ${cleaned.lower.count} 个。`, {
+              line: 'lower',
+              cleaned: cleaned.lower.text,
+              expected: length,
+            });
+          }
+          upper = cleaned.upper.text;
+          lower = cleaned.lower.text;
         }
-        if (cleaned.upper.count !== length) {
-          throw new HttpError(400, 'wrong_length', `上句要正好 ${length} 个字，现在是 ${cleaned.upper.count} 个。`, {
-            line: 'upper',
-            cleaned: cleaned.upper.text,
-            expected: length,
-          });
-        }
-        if (cleaned.lower.count !== length) {
-          throw new HttpError(400, 'wrong_length', `下句要正好 ${length} 个字，现在是 ${cleaned.lower.count} 个。`, {
-            line: 'lower',
-            cleaned: cleaned.lower.text,
-            expected: length,
-          });
-        }
-        const key = coupletKey(cleaned.upper.text, cleaned.lower.text);
+        const key = coupletKey(upper, lower);
         if (room.usedAnswers.has(key)) {
           throw new HttpError(409, 'reused_answer', '这一联之前已经出过了，换一联吧。');
         }
-        startRound(room, { upper: cleaned.upper.text, lower: cleaned.lower.text });
+        startRound(room, { upper, lower });
         room.updatedAt = now();
         broadcast(room);
         return sendJson(res, 200, { state: publicState(room, player) });
@@ -883,10 +926,7 @@ export async function createGameServer(options = {}) {
         if (room.round.status !== 'playing') {
           throw new HttpError(409, 'not_playing', '这一局不在猜题中。');
         }
-        if (roundGuessers(room).length > 0) {
-          throw new HttpError(409, 'still_guessing', '还有玩家没结束本局，等他们猜完或放弃。');
-        }
-        finishRound(room);
+        finishRound(room, { keepHost: true });
         room.updatedAt = now();
         broadcast(room);
         return sendJson(res, 200, { state: publicState(room, player) });
