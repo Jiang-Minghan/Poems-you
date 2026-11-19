@@ -52,12 +52,22 @@ export function coupletKey(upper, lower) {
 }
 
 /**
- * Mark a two-line guess against a two-line answer. Each line is a separate
- * Wordle board: a character in the lower line cannot match the upper answer.
+ * Mark a two-line guess against a two-line answer as one complete couplet.
+ * The line break is visual only: a character guessed in the upper line can be
+ * "present" because it occurs in the lower answer, and vice versa. Both lines
+ * must be fully correct to solve.
  */
 export function markCouplet(answer, guess) {
-  const upper = markGuess(answer.upper, guess.upper);
-  const lower = markGuess(answer.lower, guess.lower);
+  const upperAnswer = Array.from(answer.upper || '');
+  const lowerAnswer = Array.from(answer.lower || '');
+  const upperGuess = Array.from(guess.upper || '');
+  const lowerGuess = Array.from(guess.lower || '');
+  const allMarks = markGuess(
+    [...upperAnswer, ...lowerAnswer].join(''),
+    [...upperGuess, ...lowerGuess].join('')
+  );
+  const upper = allMarks.slice(0, upperGuess.length);
+  const lower = allMarks.slice(upperGuess.length);
   return {
     upper,
     lower,

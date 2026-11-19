@@ -1,4 +1,4 @@
-import { sanitizePoem, sanitizeCouplet, coupletSummary } from '/shared.js';
+import { sanitizePoem, coupletSummary } from '/shared.js';
 
 const $ = (sel, parent = document) => parent.querySelector(sel);
 const $$ = (sel, parent = document) => [...parent.querySelectorAll(sel)];
@@ -23,10 +23,8 @@ const app = {
   meta: null,
   paletteIndex: 0,
   setupLength: 7,
-  draftGuessUpper: '',
-  draftGuessLower: '',
-  draftPuzzleUpper: '',
-  draftPuzzleLower: '',
+  draftGuess: '',
+  draftPuzzle: '',
   seenGuessIds: new Set(),
   newGuessIds: new Set(),
   sse: null,
@@ -379,10 +377,8 @@ function showHome() {
   app.roomCode = null;
   app.seenGuessIds = new Set();
   app.newGuessIds = new Set();
-  app.draftGuessUpper = '';
-  app.draftGuessLower = '';
-  app.draftPuzzleUpper = '';
-  app.draftPuzzleLower = '';
+  app.draftGuess = '';
+  app.draftPuzzle = '';
   app.pendingGuess = false;
   app.pendingPuzzle = false;
   app.pendingComposeRender = false;
@@ -415,10 +411,8 @@ function enterRoom(data, code) {
   app.paletteIndex = data.state.paletteIndex;
   app.seenGuessIds = new Set((data.state.round.guesses || []).map(g => g.id));
   app.newGuessIds = new Set();
-  app.draftGuessUpper = '';
-  app.draftGuessLower = '';
-  app.draftPuzzleUpper = '';
-  app.draftPuzzleLower = '';
+  app.draftGuess = '';
+  app.draftPuzzle = '';
   app.setupLength = data.state.round.length === 5 ? 5 : 7;
   app.pendingGuess = false;
   app.pendingPuzzle = false;
@@ -540,28 +534,18 @@ function applyState(next) {
 
   if (prev) {
     app.newGuessIds = newIds;
-    if (next.round.status !== 'playing') {
-      app.draftGuessUpper = '';
-      app.draftGuessLower = '';
-    }
-    if (next.round.status !== 'setup') {
-      app.draftPuzzleUpper = '';
-      app.draftPuzzleLower = '';
-    }
+    if (next.round.status !== 'playing') app.draftGuess = '';
+    if (next.round.status !== 'setup') app.draftPuzzle = '';
     if (next.round.status === 'setup' && prev.round.status !== 'setup') {
-      app.draftPuzzleUpper = '';
-      app.draftPuzzleLower = '';
+      app.draftPuzzle = '';
       app.setupLength = next.round.length === 5 ? 5 : 7;
     }
     if (next.round.number !== prev.round.number) {
-      app.draftGuessUpper = '';
-      app.draftGuessLower = '';
-      app.draftPuzzleUpper = '';
-      app.draftPuzzleLower = '';
+      app.draftGuess = '';
+      app.draftPuzzle = '';
     }
     if (next.hostId !== prev.hostId && next.hostId === app.meId && next.round.status === 'setup') {
-      app.draftPuzzleUpper = '';
-      app.draftPuzzleLower = '';
+      app.draftPuzzle = '';
       app.setupLength = next.round.length === 5 ? 5 : 7;
     }
   } else {
@@ -607,9 +591,9 @@ function focusBestInput() {
   const active = document.activeElement;
   if (active && active.matches('input[id^="guess-"], input[id^="puzzle-"]')) return;
   if (app.state.round.status === 'playing' && app.state.hostId !== app.meId) {
-    $('#guess-upper')?.focus({ preventScroll: true });
+    $('#guess-input')?.focus({ preventScroll: true });
   } else if (app.state.round.status === 'setup' && app.state.hostId === app.meId) {
-    $('#puzzle-upper')?.focus({ preventScroll: true });
+    $('#puzzle-input')?.focus({ preventScroll: true });
   }
 }
 
@@ -643,7 +627,7 @@ function hostHint() {
     return isHost ? '开局前，你可以把出题权交给席间在线的朋友。' : '房主在出题。开局前，出题权可以转交。';
   }
   if (st.round.status === 'playing') {
-    if (isHost) return '你在出题席。等所有人猜完或放弃，本局结束。';
+    if (isHost) return '你在出题席。等所有人猜完或放弃，或直接结束本局。';
     if (st.round.viewer?.canSeeAll) return '你已结束本局，可以查看所有人的落子。';
     return '还在猜的人，只能查看还在猜的人的落子。';
   }
@@ -806,12 +790,13 @@ function setupMarkup() {
   const st = app.state;
   const r = st.round;
   const len = app.setupLength === 5 ? 5 : 7;
-  const preview = previewCoupletMarkup(len);
+  const total = len * 2;
+  const preview = previewCoupletMarkup(app.draftPuzzle, len);
   return `
     <div class="setup-wrap">
       <div class="eyebrow">第 ${r.number + 1} 局 · 待出联</div>
       <h2 class="setup-title">联，由你来出。</h2>
-      <p class="length-note">完整一联：上下句各 ${len} 字。</p>
+      <p class="length-note">完整一联：上下句各 ${len} 字，连续写在一个框里，共 ${total} 字。</p>
 
       <div class="length-switch" role="group" aria-label="选择句式">
         <button type="button" data-action="length" data-length="5" class="${len === 5 ? 'is-active' : ''}">五言<b>5</b></button>
@@ -819,23 +804,12 @@ function setupMarkup() {
       </div>
 
       <form id="puzzle-form" novalidate>
-        <div class="puzzle-couplet">
-          <div class="puzzle-field">
-            <span class="couplet-line-label">上</span>
-            <input id="puzzle-upper" type="text" maxlength="30" autocomplete="off" autocapitalize="off"
-                   spellcheck="false" value="${escAttr(app.draftPuzzleUpper)}"
-                   placeholder="${len === 5 ? '上句 · 五字' : '上句 · 七字'}"
-                   aria-label="谜底上句">
-            <span class="char-count" id="puzzle-upper-count">0/${len}</span>
-          </div>
-          <div class="puzzle-field">
-            <span class="couplet-line-label">下</span>
-            <input id="puzzle-lower" type="text" maxlength="30" autocomplete="off" autocapitalize="off"
-                   spellcheck="false" value="${escAttr(app.draftPuzzleLower)}"
-                   placeholder="${len === 5 ? '下句 · 五字' : '下句 · 七字'}"
-                   aria-label="谜底下句">
-            <span class="char-count" id="puzzle-lower-count">0/${len}</span>
-          </div>
+        <div class="puzzle-field">
+          <input id="puzzle-input" type="text" maxlength="30" autocomplete="off" autocapitalize="off"
+                 spellcheck="false" value="${escAttr(app.draftPuzzle)}"
+                 placeholder="${len === 5 ? '完整一联 · 上句五字 + 下句五字' : '完整一联 · 上句七字 + 下句七字'}"
+                 aria-label="完整一联谜底">
+          <span class="char-count" id="puzzle-count">0/${total}</span>
         </div>
         <p id="puzzle-error" class="form-error" role="alert"></p>
         <div class="puzzle-preview" id="puzzle-preview">${preview}</div>
@@ -965,11 +939,9 @@ function hostWatchMarkup() {
         <b>你在出题席</b>
         <span>${noGuessers
           ? '席间还没有人猜题。'
-          : `等所有人猜完或放弃；${r.activeGuessers || 0} 人还在猜。`}</span>
+          : `还有 ${r.activeGuessers || 0} 人没结束；你也可以直接结束本局。`}</span>
       </div>
-      ${noGuessers
-        ? '<button type="button" class="btn quiet" data-action="reveal">结束本局</button>'
-        : ''}
+      <button type="button" class="btn quiet" data-action="reveal">结束本局</button>
     </div>`;
 }
 
@@ -1086,28 +1058,17 @@ function guessRowMarkup(g, opts = {}) {
 function composerMarkup() {
   const st = app.state;
   const r = st.round;
+  const total = r.length * 2;
   return `
     <div class="composer">
       <form id="guess-form" class="guess-form" novalidate>
-        <div class="guess-couplet-fields">
-          <div class="composer-field">
-            <span class="couplet-line-label">上</span>
-            <input id="guess-upper" type="text" maxlength="30" autocomplete="off" autocapitalize="off"
-                   spellcheck="false" enterkeyhint="next"
-                   value="${escAttr(app.draftGuessUpper)}"
-                   placeholder="上句 · ${r.length} 字"
-                   aria-label="写下你猜的上句，${r.length} 个字">
-            <span class="char-count" id="guess-upper-count">0/${r.length}</span>
-          </div>
-          <div class="composer-field">
-            <span class="couplet-line-label">下</span>
-            <input id="guess-lower" type="text" maxlength="30" autocomplete="off" autocapitalize="off"
-                   spellcheck="false" enterkeyhint="send"
-                   value="${escAttr(app.draftGuessLower)}"
-                   placeholder="下句 · ${r.length} 字"
-                   aria-label="写下你猜的下句，${r.length} 个字">
-            <span class="char-count" id="guess-lower-count">0/${r.length}</span>
-          </div>
+        <div class="composer-field">
+          <input id="guess-input" type="text" maxlength="30" autocomplete="off" autocapitalize="off"
+                 spellcheck="false" enterkeyhint="send"
+                 value="${escAttr(app.draftGuess)}"
+                 placeholder="完整一联 · 上下句各 ${r.length} 字，共 ${total} 字"
+                 aria-label="写下完整一联，共 ${total} 个字">
+          <span class="char-count" id="guess-count">0/${total}</span>
         </div>
         <button type="submit" class="btn primary guess-submit" id="guess-submit" ${app.pendingGuess ? 'disabled' : ''}>
           ${app.pendingGuess ? '落子中…' : '落子'}
@@ -1139,11 +1100,14 @@ function previewLineMarkup(text, len) {
   }).join('');
 }
 
-function previewCoupletMarkup(len) {
+function previewCoupletMarkup(raw, len) {
+  const chars = Array.from(sanitizePoem(raw).text);
+  const upper = chars.slice(0, len).join('');
+  const lower = chars.slice(len, len * 2).join('');
   return `
     <div class="preview-couplet">
-      <div class="preview-line"><span class="couplet-line-label">上</span><div class="preview-tiles" style="--len:${len}">${previewLineMarkup(app.draftPuzzleUpper, len)}</div></div>
-      <div class="preview-line"><span class="couplet-line-label">下</span><div class="preview-tiles" style="--len:${len}">${previewLineMarkup(app.draftPuzzleLower, len)}</div></div>
+      <div class="preview-line"><span class="couplet-line-label">上</span><div class="preview-tiles" style="--len:${len}">${previewLineMarkup(upper, len)}</div></div>
+      <div class="preview-line"><span class="couplet-line-label">下</span><div class="preview-tiles" style="--len:${len}">${previewLineMarkup(lower, len)}</div></div>
     </div>`;
 }
 
@@ -1151,63 +1115,43 @@ function updatePuzzlePreview() {
   const wrap = $('#puzzle-preview');
   if (!wrap) return;
   const len = app.setupLength === 5 ? 5 : 7;
-  wrap.innerHTML = previewCoupletMarkup(len);
+  const total = len * 2;
+  const input = $('#puzzle-input');
+  if (input) app.draftPuzzle = input.value;
+  const clean = sanitizePoem(app.draftPuzzle);
+  wrap.innerHTML = previewCoupletMarkup(app.draftPuzzle, len);
 
-  const upper = $('#puzzle-upper');
-  const lower = $('#puzzle-lower');
-  app.draftPuzzleUpper = upper?.value ?? app.draftPuzzleUpper;
-  app.draftPuzzleLower = lower?.value ?? app.draftPuzzleLower;
-  const cleanUpper = sanitizePoem(app.draftPuzzleUpper);
-  const cleanLower = sanitizePoem(app.draftPuzzleLower);
-  const upperCount = $('#puzzle-upper-count');
-  const lowerCount = $('#puzzle-lower-count');
-  if (upperCount) {
-    upperCount.textContent = `${cleanUpper.count}/${len}`;
-    upperCount.classList.toggle('is-over', cleanUpper.count !== len || cleanUpper.invalid);
+  const count = $('#puzzle-count');
+  if (count) {
+    count.textContent = `${clean.count}/${total}`;
+    count.classList.toggle('is-over', clean.count !== total || clean.invalid);
   }
-  if (lowerCount) {
-    lowerCount.textContent = `${cleanLower.count}/${len}`;
-    lowerCount.classList.toggle('is-over', cleanLower.count !== len || cleanLower.invalid);
-  }
-  upper?.closest('.puzzle-field')?.classList.toggle('is-warn', cleanUpper.invalid || cleanUpper.count > len);
-  lower?.closest('.puzzle-field')?.classList.toggle('is-warn', cleanLower.invalid || cleanLower.count > len);
+  input?.closest('.puzzle-field')?.classList.toggle('is-warn', clean.invalid || clean.count > total);
 }
 
 function updateGuessCount() {
-  const upper = $('#guess-upper');
-  const lower = $('#guess-lower');
-  if (!upper || !lower || !app.state || app.state.round.status !== 'playing') return;
+  const input = $('#guess-input');
+  if (!input || !app.state || app.state.round.status !== 'playing') return;
   const len = app.state.round.length;
-  const cleanUpper = sanitizePoem(upper.value);
-  const cleanLower = sanitizePoem(lower.value);
-  app.draftGuessUpper = upper.value;
-  app.draftGuessLower = lower.value;
+  const total = len * 2;
+  const clean = sanitizePoem(input.value);
+  app.draftGuess = input.value;
 
-  const upperCount = $('#guess-upper-count');
-  const lowerCount = $('#guess-lower-count');
-  if (upperCount) {
-    upperCount.textContent = `${cleanUpper.count}/${len}`;
-    upperCount.classList.toggle('is-full', cleanUpper.count === len && !cleanUpper.invalid);
+  const count = $('#guess-count');
+  if (count) {
+    count.textContent = `${clean.count}/${total}`;
+    count.classList.toggle('is-full', clean.count === total && !clean.invalid);
   }
-  if (lowerCount) {
-    lowerCount.textContent = `${cleanLower.count}/${len}`;
-    lowerCount.classList.toggle('is-full', cleanLower.count === len && !cleanLower.invalid);
-  }
-  upper.closest('.composer-field')?.classList.toggle('is-warn', cleanUpper.invalid || cleanUpper.count > len);
-  lower.closest('.composer-field')?.classList.toggle('is-warn', cleanLower.invalid || cleanLower.count > len);
-
+  input.closest('.composer-field')?.classList.toggle('is-warn', clean.invalid || clean.count > total);
   const wash = $('#wash-note');
   if (wash) {
-    if (cleanUpper.invalid || cleanLower.invalid) wash.textContent = '只收汉字';
-    else if (cleanUpper.removed > 0 || cleanLower.removed > 0) wash.textContent = '标点已洗净 · 只算汉字';
+    if (clean.invalid) wash.textContent = '只收汉字';
+    else if (clean.removed > 0) wash.textContent = '标点已洗净 · 只算汉字';
     else wash.textContent = '';
   }
   const button = $('#guess-submit');
   if (button) {
-    const valid = !!cleanUpper.text && !!cleanLower.text
-      && !cleanUpper.invalid && !cleanLower.invalid
-      && cleanUpper.count === len && cleanLower.count === len;
-    button.disabled = app.pendingGuess || !valid;
+    button.disabled = app.pendingGuess || !clean.text || clean.invalid || clean.count !== total;
   }
 }
 
@@ -1225,16 +1169,13 @@ function bindRoom() {
   stage.addEventListener('click', onStageClick);
   stage.addEventListener('submit', onStageSubmit);
   stage.addEventListener('input', onStageInput);
-  stage.addEventListener('keydown', onStageKeydown);
   stage.addEventListener('compositionstart', () => { app.composing = true; });
   stage.addEventListener('compositionend', () => {
     app.composing = false;
     if (!app.pendingComposeRender) return;
     const el = document.activeElement;
-    if (el?.id === 'guess-upper') app.draftGuessUpper = el.value;
-    if (el?.id === 'guess-lower') app.draftGuessLower = el.value;
-    if (el?.id === 'puzzle-upper') app.draftPuzzleUpper = el.value;
-    if (el?.id === 'puzzle-lower') app.draftPuzzleLower = el.value;
+    if (el?.id === 'guess-input') app.draftGuess = el.value;
+    if (el?.id === 'puzzle-input') app.draftPuzzle = el.value;
     app.pendingComposeRender = false;
     setTimeout(() => {
       if (app.state) renderStage();
@@ -1315,34 +1256,14 @@ function onStageSubmit(event) {
 
 function onStageInput(event) {
   const el = event.target;
-  if (el.id === 'puzzle-upper') {
-    app.draftPuzzleUpper = el.value;
+  if (el.id === 'puzzle-input') {
+    app.draftPuzzle = el.value;
     const err = $('#puzzle-error');
     if (err) err.textContent = '';
     updatePuzzlePreview();
-  } else if (el.id === 'puzzle-lower') {
-    app.draftPuzzleLower = el.value;
-    const err = $('#puzzle-error');
-    if (err) err.textContent = '';
-    updatePuzzlePreview();
-  } else if (el.id === 'guess-upper') {
-    app.draftGuessUpper = el.value;
+  } else if (el.id === 'guess-input') {
+    app.draftGuess = el.value;
     updateGuessCount();
-  } else if (el.id === 'guess-lower') {
-    app.draftGuessLower = el.value;
-    updateGuessCount();
-  }
-}
-
-function onStageKeydown(event) {
-  if (event.key !== 'Enter' || event.isComposing || app.composing) return;
-  const el = event.target;
-  if (el.id === 'puzzle-upper') {
-    event.preventDefault();
-    $('#puzzle-lower')?.focus({ preventScroll: true });
-  } else if (el.id === 'guess-upper') {
-    event.preventDefault();
-    $('#guess-lower')?.focus({ preventScroll: true });
   }
 }
 
@@ -1353,7 +1274,7 @@ function setSetupLength(len) {
   const r = app.state?.round;
   if (!r || r.status !== 'setup') return;
   renderStage();
-  const el = $('#puzzle-upper');
+  const el = $('#puzzle-input');
   if (el) {
     el.focus({ preventScroll: true });
     try { el.setSelectionRange(el.value.length, el.value.length); } catch {}
@@ -1364,31 +1285,25 @@ async function submitGuess() {
   if (app.pendingGuess || !app.state || app.state.round.status !== 'playing') return false;
   if (app.state.hostId === app.meId) return false;
   if (app.state.round.viewer?.outcome) return false;
-  const upperInput = $('#guess-upper');
-  const lowerInput = $('#guess-lower');
-  const rawUpper = upperInput?.value ?? app.draftGuessUpper ?? '';
-  const rawLower = lowerInput?.value ?? app.draftGuessLower ?? '';
-  const clean = sanitizeCouplet(rawUpper, rawLower);
+  const input = $('#guess-input');
+  const raw = input?.value ?? app.draftGuess ?? '';
+  const clean = sanitizePoem(raw);
   const len = app.state.round.length;
+  const total = len * 2;
 
-  if (!clean.upper.text || !clean.lower.text) {
-    toast('上下句都要写。', 'error');
-    (!clean.upper.text ? upperInput : lowerInput)?.focus();
+  if (!clean.text) {
+    toast('先写完整一联。', 'error');
+    input?.focus();
     return false;
   }
   if (clean.invalid) {
-    toast('上下句都只收汉字，标点可以洗掉，字母和表情不行。', 'error');
-    (clean.upper.invalid ? upperInput : lowerInput)?.focus();
+    toast('只收汉字，标点可以洗掉，字母和表情不行。', 'error');
+    input?.focus();
     return false;
   }
-  if (clean.upper.count !== len) {
-    toast(`上句要 ${len} 个字，现在 ${clean.upper.count} 个。`, 'error');
-    upperInput?.focus();
-    return false;
-  }
-  if (clean.lower.count !== len) {
-    toast(`下句要 ${len} 个字，现在 ${clean.lower.count} 个。`, 'error');
-    lowerInput?.focus();
+  if (clean.count !== total) {
+    toast(`整联要 ${total} 个字（上下句各 ${len}），现在 ${clean.count} 个。`, 'error');
+    input?.focus();
     return false;
   }
 
@@ -1400,11 +1315,9 @@ async function submitGuess() {
   }
 
   try {
-    const data = await roomRequest('guess', { upper: rawUpper, lower: rawLower });
-    app.draftGuessUpper = '';
-    app.draftGuessLower = '';
-    if (upperInput) upperInput.value = '';
-    if (lowerInput) lowerInput.value = '';
+    const data = await roomRequest('guess', { text: raw });
+    app.draftGuess = '';
+    if (input) input.value = '';
     applyState(data.state);
     return true;
   } catch (err) {
@@ -1425,32 +1338,26 @@ async function submitGuess() {
 async function submitPuzzle() {
   if (app.pendingPuzzle || !app.state || app.state.round.status !== 'setup') return false;
   if (app.state.hostId !== app.meId) return false;
-  const upperInput = $('#puzzle-upper');
-  const lowerInput = $('#puzzle-lower');
-  const rawUpper = upperInput?.value ?? app.draftPuzzleUpper ?? '';
-  const rawLower = lowerInput?.value ?? app.draftPuzzleLower ?? '';
-  const clean = sanitizeCouplet(rawUpper, rawLower);
+  const input = $('#puzzle-input');
+  const raw = input?.value ?? app.draftPuzzle ?? '';
+  const clean = sanitizePoem(raw);
   const len = app.setupLength === 5 ? 5 : 7;
+  const total = len * 2;
   const errorEl = $('#puzzle-error');
 
-  if (!clean.upper.text || !clean.lower.text) {
-    if (errorEl) errorEl.textContent = '上下句都要写。';
-    (!clean.upper.text ? upperInput : lowerInput)?.focus();
+  if (!clean.text) {
+    if (errorEl) errorEl.textContent = '先写完整一联。';
+    input?.focus();
     return false;
   }
   if (clean.invalid) {
-    if (errorEl) errorEl.textContent = '上下句都只能有汉字。';
-    (clean.upper.invalid ? upperInput : lowerInput)?.focus();
+    if (errorEl) errorEl.textContent = '谜底只能有汉字。';
+    input?.focus();
     return false;
   }
-  if (clean.upper.count !== len) {
-    if (errorEl) errorEl.textContent = `上句要正好 ${len} 个字，现在是 ${clean.upper.count} 个。`;
-    upperInput?.focus();
-    return false;
-  }
-  if (clean.lower.count !== len) {
-    if (errorEl) errorEl.textContent = `下句要正好 ${len} 个字，现在是 ${clean.lower.count} 个。`;
-    lowerInput?.focus();
+  if (clean.count !== total) {
+    if (errorEl) errorEl.textContent = `整联要 ${total} 个字（上下句各 ${len}），现在是 ${clean.count} 个。`;
+    input?.focus();
     return false;
   }
 
@@ -1463,9 +1370,8 @@ async function submitPuzzle() {
   if (errorEl) errorEl.textContent = '';
 
   try {
-    const data = await roomRequest('puzzle', { upper: rawUpper, lower: rawLower, length: len });
-    app.draftPuzzleUpper = '';
-    app.draftPuzzleLower = '';
+    const data = await roomRequest('puzzle', { text: raw, length: len });
+    app.draftPuzzle = '';
     applyState(data.state);
     toast('联已挂出，等大家落子。');
     return true;
@@ -1491,16 +1397,13 @@ async function borrowInspiration(button) {
   button.textContent = '翻诗中…';
   try {
     const couplet = await api(`/api/inspiration?length=${app.setupLength}`);
-    app.draftPuzzleUpper = couplet.upper;
-    app.draftPuzzleLower = couplet.lower;
-    const upper = $('#puzzle-upper');
-    const lower = $('#puzzle-lower');
-    if (upper) upper.value = couplet.upper;
-    if (lower) lower.value = couplet.lower;
+    app.draftPuzzle = couplet.upper + couplet.lower;
+    const input = $('#puzzle-input');
+    if (input) input.value = app.draftPuzzle;
     updatePuzzlePreview();
     const err = $('#puzzle-error');
     if (err) err.textContent = '';
-    upper?.focus({ preventScroll: true });
+    input?.focus({ preventScroll: true });
     toast(couplet.author ? `借来 ${couplet.author} 的一联。` : '借来一联好诗。');
   } catch (err) {
     toast(err.message, 'error');
@@ -1528,18 +1431,24 @@ async function doNext(button) {
     const data = await roomRequest('next');
     applyState(data.state);
     toast('新一局，可以出联了。');
-    setTimeout(() => $('#puzzle-upper')?.focus({ preventScroll: true }), 120);
+    setTimeout(() => $('#puzzle-input')?.focus({ preventScroll: true }), 120);
   });
 }
 
 function confirmEndRound() {
   if (!app.state || app.state.round.status !== 'playing') return;
-  if ((app.state.round.guesserCount || 0) > 0) return;
+  const active = app.state.round.activeGuessers || 0;
+  const hasSolver = app.state.players.some(p => p.outcome === 'solved');
+  const body = active > 0
+    ? `<p>还有 <b>${active}</b> 人没结束。强制结束后会直接揭晓；${hasSolver
+      ? '已经有猜中者，结束时会由第一个猜中的人接任房主。'
+      : '目前还没有人猜中，结束后房主不变。'}</p>`
+    : '<p>席间还没有其他人猜题。结束后会揭晓谜底。</p>';
   openDialog({
     eyebrow: '结束',
-    title: '结束这一局？',
-    body: '<p>席间还没有其他人猜题。结束后会揭晓谜底。</p>',
-    confirmLabel: '结束本局',
+    title: active > 0 ? '现在强制结束本局？' : '结束这一局？',
+    body,
+    confirmLabel: active > 0 ? '强制结束' : '结束本局',
     cancelLabel: '再等等',
     onConfirm: async () => {
       const data = await roomRequest('reveal');
@@ -1748,9 +1657,9 @@ async function copyText(text) {
 function openHelp() {
   const rules = `
     <ul class="modal-rules">
-      <li><span class="rule-num">1</span><span>房主选五言或七言，写下完整一联：上下句各 5 或 7 字。其余人各猜完整一联，标点与空格会被洗净。房主不猜自己的题。</span></li>
-      <li><span class="rule-num">2</span><span>每落一联，上下句分别判色：<b>× 无此字</b>，<b>◐ 有字但错位</b>，<b>✓ 字位皆对</b>。</span></li>
-      <li><span class="rule-num">3</span><span>每人猜测次数不限。猜中或放弃会结束你自己的本局；所有猜题人都结束，本局才结束。第一个猜中的人成为新房主。</span></li>
+      <li><span class="rule-num">1</span><span>房主选五言或七言，写下完整一联：上下句各 5 或 7 字，整联连续写在一个输入框里，前 5/7 字是上句。其余人各猜完整一联，标点与空格会被洗净。房主不猜自己的题。</span></li>
+      <li><span class="rule-num">2</span><span>每落一联，整联一起判色：<b>× 无此字</b>，<b>◐ 有字但错位</b>，<b>✓ 字位皆对</b>。字出现在另一句、位置不同也会标 ◐；两句都全对才算猜中。</span></li>
+      <li><span class="rule-num">3</span><span>每人猜测次数不限。猜中或放弃会结束你自己的本局；所有猜题人都结束，或房主强制结束，本局才结束。房主强制结束时，若已有人猜中，第一个猜中的人接任房主；否则房主不变。</span></li>
       <li><span class="rule-num">4</span><span>已结束的人可以查看任何人的落子；还在猜的人只能查看还在猜的人的落子。放弃会立刻看到答案。</span></li>
       <li><span class="rule-num">5</span><span>邀请码是同一席的钥匙，把入席链接发给朋友即可。开局前房主可以把出题权交给别人。</span></li>
     </ul>
