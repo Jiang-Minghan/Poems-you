@@ -617,6 +617,10 @@ function renderRoom(opts = {}) {
   const st = app.state;
   $('#room-code').textContent = st.code;
   $('#player-count').textContent = playerCountText(st);
+  const chatPanel = $('#chat-panel');
+  if (chatPanel) chatPanel.hidden = !!st.practice;
+  const historyBtn = $('#history-btn');
+  if (historyBtn) historyBtn.hidden = false;
   renderPlayers();
   renderEvents();
   renderChat();
@@ -812,7 +816,7 @@ function captureFocus() {
 
 function transferCandidates() {
   const st = app.state;
-  if (!st) return [];
+  if (!st || st.practice) return [];
   return st.players.filter(p => !p.isBot && p.online && p.id !== st.hostId);
 }
 
@@ -940,8 +944,8 @@ function answerCoupletMarkup(answer) {
     `<span style="--i:${i}">${esc(ch)}</span>`).join('');
   return `
     <div class="answer-couplet">
-      <div class="answer-line"><span class="answer-label">上</span><span class="answer-chars">${chars(answer.upper)}</span></div>
-      <div class="answer-line"><span class="answer-label">下</span><span class="answer-chars">${chars(answer.lower)}</span></div>
+      <div class="answer-line"><span class="answer-chars">${chars(answer.upper)}</span></div>
+      <div class="answer-line"><span class="answer-chars">${chars(answer.lower)}</span></div>
     </div>`;
 }
 
@@ -985,6 +989,9 @@ function revealMarkup() {
   const st = app.state;
   const r = st.round;
   const winner = r.winnerId ? st.players.find(p => p.id === r.winnerId) : null;
+  const practiceTries = winner
+    ? r.guesses.filter(g => g.playerId === winner.id).length
+    : 0;
   const isHost = st.hostId === app.meId;
   const hostIsBot = st.hostId === 'bot-poet';
   const meta = r.answerMeta && (r.answerMeta.author || r.answerMeta.title)
@@ -1017,9 +1024,13 @@ function revealMarkup() {
         ${answerCoupletMarkup(r.answer)}
         <div class="answer-meta">${meta ? esc(meta) : '未记出处'}</div>
         <p class="reveal-story">
-          ${winner
-            ? `<b>${esc(winner.name)}</b> 第一个猜中，接过出题权。${winner.id === app.meId ? '现在，轮到你出联。' : '等新席主铺开下一局。'}`
-            : '本局结束，没有人猜中。席主可以再开一局。'}
+          ${st.practice
+            ? (winner
+              ? `你用了 ${practiceTries} 次猜中。诗灵会继续铺下一联。`
+              : '这一局未猜中。诗灵会继续铺下一联。')
+            : (winner
+              ? `<b>${esc(winner.name)}</b> 第一个猜中，接过出题权。${winner.id === app.meId ? '现在，轮到你出联。' : '等新席主铺开下一局。'}`
+              : '本局结束，没有人猜中。席主可以再开一局。')}
         </p>
         <div class="reveal-actions">${actions}</div>
       </div>
@@ -1047,8 +1058,8 @@ function boardEmptyMarkup(r, isHost) {
   return `
     <div class="board-empty">
       <div class="ghost-couplet" style="--len:${len}">
-        <div class="ghost-line"><span class="couplet-line-label">上</span><div class="ghost-tiles" style="--len:${len}">${ghosts}</div></div>
-        <div class="ghost-line"><span class="couplet-line-label">下</span><div class="ghost-tiles" style="--len:${len}">${ghosts}</div></div>
+        <div class="ghost-line"><div class="ghost-tiles" style="--len:${len}">${ghosts}</div></div>
+        <div class="ghost-line"><div class="ghost-tiles" style="--len:${len}">${ghosts}</div></div>
       </div>
       <p>第一联，会是谁的？</p>
       <small>${hidden
@@ -1083,8 +1094,8 @@ function guessRowMarkup(g, opts = {}) {
         <b>${mine ? '我' : esc(g.playerName)}</b>
       </div>
       <div class="guess-couplet">
-        <div class="guess-line"><span class="couplet-line-label">上</span><div class="guess-tiles" style="--len:${len}">${tilesMarkup(g.upper, upperMarks)}</div></div>
-        <div class="guess-line"><span class="couplet-line-label">下</span><div class="guess-tiles" style="--len:${len}">${tilesMarkup(g.lower, lowerMarks)}</div></div>
+        <div class="guess-line"><div class="guess-tiles" style="--len:${len}">${tilesMarkup(g.upper, upperMarks)}</div></div>
+        <div class="guess-line"><div class="guess-tiles" style="--len:${len}">${tilesMarkup(g.lower, lowerMarks)}</div></div>
       </div>
       <div class="guess-stats" aria-label="${summary.correct} 个字位皆对，${summary.present} 个字有字错位">
         <b class="s-correct">✓${summary.correct}</b> <b class="s-present">◐${summary.present}</b>
@@ -1143,8 +1154,8 @@ function previewCoupletMarkup(raw, len) {
   const lower = chars.slice(len, len * 2).join('');
   return `
     <div class="preview-couplet">
-      <div class="preview-line"><span class="couplet-line-label">上</span><div class="preview-tiles" style="--len:${len}">${previewLineMarkup(upper, len)}</div></div>
-      <div class="preview-line"><span class="couplet-line-label">下</span><div class="preview-tiles" style="--len:${len}">${previewLineMarkup(lower, len)}</div></div>
+      <div class="preview-line"><div class="preview-tiles" style="--len:${len}">${previewLineMarkup(upper, len)}</div></div>
+      <div class="preview-line"><div class="preview-tiles" style="--len:${len}">${previewLineMarkup(lower, len)}</div></div>
     </div>`;
 }
 
@@ -1199,6 +1210,7 @@ function updateGuessCount() {
 function bindRoom() {
   $('#copy-code').addEventListener('click', copyInvite);
   $('#help-btn').addEventListener('click', openHelp);
+  $('#history-btn').addEventListener('click', openArchive);
   $('#leave-btn').addEventListener('click', confirmLeave);
   $('#brand-home').addEventListener('click', confirmLeave);
 
@@ -1740,6 +1752,7 @@ function openHelp() {
       <li><span class="rule-num">3</span><span>每人猜测次数不限。猜中或放弃会结束你自己的本局；所有猜题人都结束，或席主强制结束，本局才结束。席主强制结束时，若已有人猜中，第一个猜中的人接任席主；否则席主不变。</span></li>
       <li><span class="rule-num">4</span><span>已结束的人可以查看任何人的落笔；还在猜的人只能查看还在猜的人的落笔。放弃会立刻看到答案。</span></li>
       <li><span class="rule-num">5</span><span>邀请码是同一席的钥匙，把入席链接发给朋友即可。开局前席主可以把出题权交给别人。</span></li>
+      <li><span class="rule-num">6</span><span>单人练习没有席主交接：诗灵一直出题，猜中或放弃后点「请诗灵再出一联」继续。</span></li>
     </ul>
     <div class="modal-legend">
       <span class="legend-pair"><span class="mini-tile absent">×</span> 无此字</span>
@@ -1757,6 +1770,166 @@ function openHelp() {
     confirmLabel: '知道了',
     showCancel: false,
   });
+}
+
+function archiveRounds() {
+  return [...(app.state?.history || [])].reverse();
+}
+
+function archiveRoundMarkup(h) {
+  const lenLabel = h.length === 5 ? '五言' : '七言';
+  const practice = !!app.state?.practice;
+  const headMeta = practice ? lenLabel : `${lenLabel} · 出题：${esc(h.setterName || '未知')}`;
+  const result = practice
+    ? (h.winnerName ? `${h.winnerGuessCount} 次猜中` : '未猜中')
+    : (h.winnerName ? `最快：${esc(h.winnerName)} · ${h.winnerGuessCount} 次` : '最快：无人猜中');
+  return `
+    <article class="history-round">
+      <div class="history-round-head">
+        <b>第 ${h.number} 局</b>
+        <span>${headMeta}</span>
+      </div>
+      <div class="history-poem">
+        <p>${esc(h.answer.upper)}</p>
+        <p>${esc(h.answer.lower)}</p>
+      </div>
+      <p class="history-result">${result}</p>
+    </article>`;
+}
+
+function openArchive() {
+  const rounds = archiveRounds();
+  const body = `
+    <div class="history-recap">
+      <p class="history-intro">房间 ${esc(app.roomCode || '')} · 已结束 ${rounds.length} 局</p>
+      ${rounds.length
+        ? `<div class="history-list">${rounds.map(archiveRoundMarkup).join('')}</div>
+           <div class="history-actions">
+             <button type="button" class="btn quiet" id="history-save">保存图片</button>
+             <button type="button" class="btn quiet" id="history-share">分享</button>
+           </div>`
+        : '<p class="history-empty">还没有结束的局。猜完一局，这里会留下诗、出题人和最快猜中的人。</p>'}
+    </div>`;
+  openDialog({
+    eyebrow: '回溯',
+    title: '每一局，都留了痕。',
+    body,
+    showCancel: false,
+    confirmLabel: '关上',
+  });
+  if (!rounds.length) return;
+  $('#history-save')?.addEventListener('click', () => saveArchiveImage(false));
+  $('#history-share')?.addEventListener('click', () => saveArchiveImage(true));
+}
+
+function archiveColor(name, fallback) {
+  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return value || fallback;
+}
+
+function drawArchiveCanvas() {
+  const rounds = archiveRounds();
+  const W = 1080;
+  const PAD = 64;
+  const ITEM_H = 280;
+  const H = 220 + Math.max(1, rounds.length) * ITEM_H + 90;
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  const paper = archiveColor('--c-paper', '#f7efeb');
+  const ink = archiveColor('--c-ink', '#3b2c27');
+  const inkSoft = archiveColor('--c-inkSoft', '#6a5d58');
+  const accent = archiveColor('--c-accent', '#8a5b50');
+  const line = archiveColor('--c-line', '#ddd4d0');
+
+  ctx.fillStyle = paper;
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = accent;
+  ctx.fillRect(0, 0, W, 12);
+  ctx.textBaseline = 'top';
+  ctx.fillStyle = ink;
+  ctx.font = '600 52px "Noto Serif SC", "Songti SC", serif';
+  ctx.fillText('诗光与你 · 回溯', PAD, 68);
+  ctx.fillStyle = inkSoft;
+  ctx.font = '22px "PingFang SC", "Microsoft YaHei", sans-serif';
+  ctx.fillText(`房间 ${app.roomCode || ''} · 已结束 ${rounds.length} 局`, PAD, 140);
+
+  let y = 200;
+  if (!rounds.length) {
+    ctx.fillStyle = inkSoft;
+    ctx.font = '26px "PingFang SC", "Microsoft YaHei", sans-serif';
+    ctx.fillText('还没有结束的局。', PAD, y);
+  }
+  for (const h of rounds) {
+    const practice = !!app.state?.practice;
+    ctx.fillStyle = accent;
+    ctx.font = '600 26px "Noto Serif SC", "Songti SC", serif';
+    ctx.fillText(`第 ${h.number} 局 · ${h.length === 5 ? '五言' : '七言'}`, PAD, y);
+    if (!practice) {
+      ctx.fillStyle = inkSoft;
+      ctx.font = '20px "PingFang SC", "Microsoft YaHei", sans-serif';
+      ctx.fillText(`出题：${h.setterName || '未知'}`, PAD, y + 38);
+      y += 82;
+    } else {
+      y += 46;
+    }
+    ctx.fillStyle = ink;
+    ctx.font = '600 38px "Noto Serif SC", "Songti SC", serif';
+    ctx.fillText(`${h.answer.upper} ${h.answer.lower}`, PAD, y);
+    y += 64;
+    ctx.fillStyle = h.winnerName ? accent : inkSoft;
+    ctx.font = '24px "PingFang SC", "Microsoft YaHei", sans-serif';
+    ctx.fillText(practice
+      ? (h.winnerName ? `${h.winnerGuessCount} 次猜中` : '未猜中')
+      : (h.winnerName ? `最快：${h.winnerName} · ${h.winnerGuessCount} 次` : '最快：无人猜中'), PAD, y);
+    y += 44;
+    ctx.strokeStyle = line;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(PAD, y);
+    ctx.lineTo(W - PAD, y);
+    ctx.stroke();
+    y += 22;
+  }
+
+  ctx.fillStyle = inkSoft;
+  ctx.font = '18px "PingFang SC", "Microsoft YaHei", sans-serif';
+  ctx.fillText('诗光与你 · 同席成诗', PAD, H - 52);
+  return canvas;
+}
+
+function saveArchiveImage(share) {
+  const canvas = drawArchiveCanvas();
+  const filename = `诗光与你-回溯-${app.roomCode || 'room'}.png`;
+  canvas.toBlob(async blob => {
+    if (!blob) {
+      toast('图片生成失败，再试一次。', 'error');
+      return;
+    }
+    if (share && navigator.share && typeof File !== 'undefined') {
+      const file = new File([blob], filename, { type: 'image/png' });
+      if (navigator.canShare?.({ files: [file] })) {
+        try {
+          await navigator.share({
+            files: [file],
+            title: '诗光与你 · 回溯',
+            text: `房间 ${app.roomCode || ''} 的每一局。`,
+          });
+          return;
+        } catch {}
+      }
+    }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast(share ? '已保存图片，可手动分享。' : '回溯图片已保存。');
+  }, 'image/png');
 }
 
 /* ------------------------------------------------------------------ *

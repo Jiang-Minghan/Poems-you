@@ -975,7 +975,97 @@ html[data-theme="dark"] .grain { mix-blend-mode: screen; opacity: calc(var(--c-n
   letter-spacing: 0.06em;
 }
 
-/* ---------- host transfer ---------- */
+/* ---------- history archive ---------- */
+
+.history-recap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.history-intro {
+  margin: 0;
+  font-size: 10px;
+  color: var(--c-inkSoft);
+  letter-spacing: 0.06em;
+}
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 54vh;
+  overflow-y: auto;
+  padding-right: 3px;
+  scrollbar-width: thin;
+}
+.history-round {
+  padding: 13px 14px 12px;
+  border: 1px solid color-mix(in srgb, var(--c-line) 82%, var(--c-ink) 10%);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--c-paper2) 72%, transparent);
+}
+.history-round-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.history-round-head b {
+  font-family: var(--font-serif);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--c-ink);
+  letter-spacing: 0.05em;
+}
+.history-round-head span {
+  font-size: 9.5px;
+  color: var(--c-inkSoft);
+  text-align: right;
+}
+.history-poem {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 7px 0 6px;
+  border-top: 1px solid color-mix(in srgb, var(--c-line) 68%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--c-line) 68%, transparent);
+}
+.history-poem p {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 15px;
+  line-height: 1.7;
+  letter-spacing: 0.12em;
+  color: var(--c-ink);
+}
+.history-poem p span {
+  display: inline-block;
+  width: 18px;
+  margin-right: 4px;
+  font-family: var(--font-sans);
+  font-size: 9px;
+  letter-spacing: 0;
+  color: var(--c-inkSoft);
+}
+.history-result {
+  margin: 8px 0 0;
+  font-size: 10.5px;
+  color: var(--c-accent);
+  letter-spacing: 0.03em;
+}
+.history-actions {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+.history-actions .btn { min-height: 34px; height: 34px; font-size: 10.5px; }
+.history-empty {
+  margin: 8px 0 2px;
+  font-size: 11px;
+  line-height: 1.8;
+  color: var(--c-inkSoft);
+}
+
 
 .transfer-action {
   border-color: color-mix(in srgb, var(--c-accent) 58%, var(--c-line));
@@ -1160,9 +1250,9 @@ html[data-theme="dark"] .grain { mix-blend-mode: screen; opacity: calc(var(--c-n
 }
 .ghost-line {
   display: grid;
-  grid-template-columns: 18px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
-  gap: 5px;
+  gap: 0;
 }
 .ghost-tiles span {
   aspect-ratio: 1;
@@ -1209,12 +1299,11 @@ html[data-theme="dark"] .grain { mix-blend-mode: screen; opacity: calc(var(--c-n
 }
 .guess-line {
   display: grid;
-  grid-template-columns: 18px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
-  gap: 4px;
+  gap: 0;
   min-width: 0;
 }
-.guess-line .couplet-line-label { font-size: 9px; }
 
 .guess-who {
   min-width: 0;
@@ -1611,9 +1700,9 @@ html[data-theme="dark"] .grain { mix-blend-mode: screen; opacity: calc(var(--c-n
 }
 .preview-line {
   display: grid;
-  grid-template-columns: 18px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
-  gap: 5px;
+  gap: 0;
 }
 .preview-tiles {
   display: grid;

@@ -92,6 +92,8 @@ function emptyRound(number = 0, length = 7) {
     outcomes: new Map(),
     solvers: [],
     winnerId: null,
+    setterId: null,
+    setterName: null,
     startedAt: null,
     endedAt: null,
   };
@@ -312,10 +314,12 @@ export async function createGameServer(options = {}) {
       code: room.code,
       hostId: host ? host.id : null,
       hostName: host ? host.name : null,
+      practice: !!room.practice,
       players,
       round: publicRound(room, meta, viewer),
       events: room.events.slice(-8),
       chat: (room.chat || []).slice(-40),
+      history: (room.history || []).slice(-30),
       paletteIndex: room.paletteIndex,
       serverNow: now(),
     };
@@ -384,10 +388,12 @@ export async function createGameServer(options = {}) {
       updatedAt: now(),
       hostId: null,
       paletteIndex: 0,
+      practice: !!withBotHost,
       players: new Map(),
       round: emptyRound(),
       events: [],
       chat: [],
+      history: [],
       streams: new Set(),
       usedAnswers: new Set(),
     };
@@ -465,10 +471,13 @@ export async function createGameServer(options = {}) {
       throw new HttpError(400, 'bad_length', '谜底要上下句字数相同，且各为五字或七字。');
     }
     const answerText = { upper: checked.upper.text, lower: checked.lower.text };
+    const setter = room.players.get(room.hostId);
     room.round = {
       ...emptyRound(room.round.number + 1, len),
       status: 'playing',
       answer: answerText,
+      setterId: room.hostId,
+      setterName: setter ? setter.name : (byBot ? BOT_NAME : null),
       startedAt: now(),
     };
     room.usedAnswers.add(coupletKey(answerText.upper, answerText.lower));
@@ -507,13 +516,33 @@ export async function createGameServer(options = {}) {
       .find(p => p && !p.isBot) || null;
     if (winner) {
       room.round.winnerId = winner.id;
-      room.hostId = winner.id;
-      addEvent(room, 'win', `${winner.name} 第一个猜中，成为新席主`);
+      if (room.practice) {
+        addEvent(room, 'win', `${winner.name} 猜中了，诗灵继续铺纸`);
+      } else {
+        room.hostId = winner.id;
+        addEvent(room, 'win', `${winner.name} 第一个猜中，成为新席主`);
+      }
     } else {
       room.round.winnerId = null;
       addEvent(room, 'end', '本局结束，无人猜中');
       if (!keepHost) ensureHostOnline(room);
     }
+    const winnerGuesses = winner
+      ? room.round.guesses.filter(g => g.playerId === winner.id).length
+      : 0;
+    room.history.push({
+      number: room.round.number,
+      length: room.round.length,
+      answer: { ...room.round.answer },
+      setterId: room.round.setterId,
+      setterName: room.round.setterName,
+      winnerId: winner ? winner.id : null,
+      winnerName: winner ? winner.name : null,
+      winnerGuessCount: winnerGuesses,
+      startedAt: room.round.startedAt,
+      endedAt: room.round.endedAt,
+    });
+    if (room.history.length > 60) room.history.splice(0, room.history.length - 60);
     room.updatedAt = now();
     return true;
   }
@@ -739,6 +768,7 @@ export async function createGameServer(options = {}) {
       const player = requirePlayer(room, body.token);
 
       if (action === 'chat' && req.method === 'POST') {
+        if (room.practice) throw new HttpError(403, 'no_chat', '单人练习没有席间闲话。');
         const text = normalizeChat(body.text);
         if (!text) throw new HttpError(400, 'empty_chat', '写一句话再送出。');
         room.chat.push({
