@@ -170,6 +170,13 @@ function applyPalette(index, animate = true) {
   for (const [key, value] of Object.entries(palette.vars || {})) {
     rootEl.style.setProperty(`--c-${key}`, value);
   }
+  const source = Array.isArray(palette.source) && palette.source.length
+    ? palette.source
+    : [palette.vars?.paper, palette.vars?.accent, palette.vars?.present, palette.vars?.correct];
+  for (let i = 0; i < 5; i += 1) {
+    const color = source[Math.min(i, source.length - 1)] || palette.vars?.paper || 'transparent';
+    rootEl.style.setProperty(`--p${i + 1}`, color);
+  }
   rootEl.dataset.theme = palette.mode === 'dark' ? 'dark' : 'light';
   const themeMeta = document.querySelector('meta[name="theme-color"]');
   if (themeMeta && palette.vars?.bg) themeMeta.setAttribute('content', palette.vars.bg);
@@ -313,7 +320,7 @@ async function doPractice() {
     app.name = data.you.name;
     safeLocalSet('sg.name', app.name);
     enterRoom(data, data.state.code);
-    setTimeout(() => toast('诗灵替你藏了一联。猜中之后，你就是房主。'), 500);
+    setTimeout(() => toast('诗灵替你藏了一联。猜中之后，你就是席主。'), 500);
   } catch (err) {
     showHomeError(err.message);
   } finally {
@@ -624,14 +631,14 @@ function hostHint() {
   if (!st) return '';
   const isHost = st.hostId === app.meId;
   if (st.round.status === 'setup') {
-    return isHost ? '开局前，你可以把出题权交给席间在线的朋友。' : '房主在出题。开局前，出题权可以转交。';
+    return isHost ? '开局前，你可以把出题权交给席间在线的朋友。' : '席主在出题。开局前，出题权可以转交。';
   }
   if (st.round.status === 'playing') {
     if (isHost) return '你在出题席。等所有人猜完或放弃，或直接结束本局。';
-    if (st.round.viewer?.canSeeAll) return '你已结束本局，可以查看所有人的落子。';
-    return '还在猜的人，只能查看还在猜的人的落子。';
+    if (st.round.viewer?.canSeeAll) return '你已结束本局，可以查看所有人的落笔。';
+    return '还在猜的人，只能查看还在猜的人的落笔。';
   }
-  return isHost ? '可以再开一局，或把出题权交出去。' : `等 ${st.hostName || '房主'} 铺开下一局。`;
+  return isHost ? '可以再开一局，或把出题权交出去。' : `等 ${st.hostName || '席主'} 铺开下一局。`;
 }
 
 function canViewHistory(p) {
@@ -796,7 +803,7 @@ function setupMarkup() {
     <div class="setup-wrap">
       <div class="eyebrow">第 ${r.number + 1} 局 · 待出联</div>
       <h2 class="setup-title">联，由你来出。</h2>
-      <p class="length-note">完整一联：上下句各 ${len} 字，连续写在一个框里，共 ${total} 字。</p>
+      <p class="length-note">完整一联：连续写在一个框里，共 ${total} 字。</p>
 
       <div class="length-switch" role="group" aria-label="选择句式">
         <button type="button" data-action="length" data-length="5" class="${len === 5 ? 'is-active' : ''}">五言<b>5</b></button>
@@ -807,7 +814,7 @@ function setupMarkup() {
         <div class="puzzle-field">
           <input id="puzzle-input" type="text" maxlength="30" autocomplete="off" autocapitalize="off"
                  spellcheck="false" value="${escAttr(app.draftPuzzle)}"
-                 placeholder="${len === 5 ? '完整一联 · 上句五字 + 下句五字' : '完整一联 · 上句七字 + 下句七字'}"
+                 placeholder="完整一联 · 共 ${total} 字"
                  aria-label="完整一联谜底">
           <span class="char-count" id="puzzle-count">0/${total}</span>
         </div>
@@ -837,22 +844,22 @@ function setupMarkup() {
 function waitingMarkup() {
   const st = app.state;
   const r = st.round;
-  const hostName = st.hostName || '房主';
+  const hostName = st.hostName || '席主';
   return `
     <div class="waiting-wrap">
       <div class="waiting-mark" aria-hidden="true"><span>待</span></div>
-      <div class="eyebrow">第 ${r.number + 1} 局 · 房主出联中</div>
+      <div class="eyebrow">第 ${r.number + 1} 局 · 席主出联中</div>
       <h2 class="waiting-title">纸已铺开，墨还没落。</h2>
-      <p class="waiting-desc">房主 <b>${esc(hostName)}</b> 正在藏一联。你可以先把邀请码递给朋友，等人齐了再开局。</p>
+      <p class="waiting-desc">席主 <b>${esc(hostName)}</b> 正在藏一联。你可以先把邀请码递给朋友，等人齐了再开局。</p>
       ${inviteStripMarkup()}
       <div class="waiting-players">
         ${st.players.filter(p => !p.isBot).map(p => `
           <span class="waiting-chip">
             <span class="avatar">${esc(firstChar(p.name))}</span>
-            ${esc(p.name)}${p.id === st.hostId ? ' · 房主' : ''}
+            ${esc(p.name)}${p.id === st.hostId ? ' · 席主' : ''}
           </span>`).join('')}
       </div>
-      <p class="whisper">开局前，房主可以把出题权交给席间任意一人。猜中的人，会成为新的房主。</p>
+      <p class="whisper">开局前，席主可以把出题权交给席间任意一人。猜中的人，会成为新的席主。</p>
     </div>`;
 }
 
@@ -881,7 +888,7 @@ function playingMarkup() {
     <div class="playing-view">
       <div class="round-top">
         <div>
-          <div class="eyebrow">第 ${r.number} 局 · ${lenLabel} · 上下句各${r.length}字 · 共 ${humans.length} 人在席</div>
+          <div class="eyebrow">第 ${r.number} 局 · ${lenLabel} · 共 ${humans.length} 人在席</div>
           <h2 class="round-title">${lenLabel}一联，藏在这一局里。</h2>
           <div class="round-meta">
             <span>${solvedCount} 人已猜中</span>
@@ -956,7 +963,7 @@ function revealMarkup() {
     : '';
   const rows = r.guesses.length
     ? r.guesses.map(g => guessRowMarkup(g, { winnerId: r.winnerId })).join('')
-    : '<p class="events-empty">这一局没有人落子。</p>';
+    : '<p class="events-empty">这一局没有人落笔。</p>';
 
   let actions = '';
   if (isHost) {
@@ -966,7 +973,7 @@ function revealMarkup() {
     actions += `<button type="button" class="btn primary" data-action="poet">请诗灵再出一联
       <svg class="icon"><use href="#i-arrow"></use></svg></button>`;
   } else {
-    actions += `<span class="reveal-hint">等 <b>${esc(st.hostName || '房主')}</b> 铺开下一局。</span>`;
+    actions += `<span class="reveal-hint">等 <b>${esc(st.hostName || '席主')}</b> 铺开下一局。</span>`;
   }
   actions += `<button type="button" class="btn quiet" data-action="copy-invite">复制邀请</button>`;
 
@@ -975,19 +982,19 @@ function revealMarkup() {
       <div class="reveal-card">
         <div class="reveal-head">
           <span class="eyebrow reveal-kicker">${winner ? '本局有主 · 谜底' : '谜底揭晓'}</span>
-          <span class="eyebrow">第 ${r.number} 局 · ${r.length === 5 ? '五言' : '七言'} · 上下句各${r.length}字</span>
+          <span class="eyebrow">第 ${r.number} 局 · ${r.length === 5 ? '五言' : '七言'}</span>
         </div>
         ${answerCoupletMarkup(r.answer)}
         <div class="answer-meta">${meta ? esc(meta) : '未记出处'}</div>
         <p class="reveal-story">
           ${winner
-            ? `<b>${esc(winner.name)}</b> 第一个猜中，接过出题权。${winner.id === app.meId ? '现在，轮到你出联。' : '等新房主铺开下一局。'}`
-            : '本局结束，没有人猜中。房主可以再开一局。'}
+            ? `<b>${esc(winner.name)}</b> 第一个猜中，接过出题权。${winner.id === app.meId ? '现在，轮到你出联。' : '等新席主铺开下一局。'}`
+            : '本局结束，没有人猜中。席主可以再开一局。'}
         </p>
         <div class="reveal-actions">${actions}</div>
       </div>
       <div class="log-head">
-        <h3>本局落子</h3>
+        <h3>本局落笔</h3>
         <span>${r.guesses.length} 联</span>
       </div>
       <div class="board reveal-board">${rows}</div>
@@ -1015,8 +1022,8 @@ function boardEmptyMarkup(r, isHost) {
       </div>
       <p>第一联，会是谁的？</p>
       <small>${hidden
-        ? '已结束本局的落子暂不可见。'
-        : isHost ? '还没有人落子。' : '落下一联，颜色会告诉你字的位置。'}</small>
+        ? '已结束本局的落笔暂不可见。'
+        : isHost ? '还没有人落笔。' : '落笔一联，颜色会告诉你字的位置。'}</small>
     </div>`;
 }
 
@@ -1066,12 +1073,12 @@ function composerMarkup() {
           <input id="guess-input" type="text" maxlength="30" autocomplete="off" autocapitalize="off"
                  spellcheck="false" enterkeyhint="send"
                  value="${escAttr(app.draftGuess)}"
-                 placeholder="完整一联 · 上下句各 ${r.length} 字，共 ${total} 字"
+                 placeholder="完整一联 · 共 ${total} 字"
                  aria-label="写下完整一联，共 ${total} 个字">
           <span class="char-count" id="guess-count">0/${total}</span>
         </div>
         <button type="submit" class="btn primary guess-submit" id="guess-submit" ${app.pendingGuess ? 'disabled' : ''}>
-          ${app.pendingGuess ? '落子中…' : '落子'}
+          ${app.pendingGuess ? '落笔中…' : '落笔'}
         </button>
       </form>
       <div class="composer-hint">
@@ -1302,7 +1309,7 @@ async function submitGuess() {
     return false;
   }
   if (clean.count !== total) {
-    toast(`整联要 ${total} 个字（上下句各 ${len}），现在 ${clean.count} 个。`, 'error');
+    toast(`整联要 ${total} 个字，现在 ${clean.count} 个。`, 'error');
     input?.focus();
     return false;
   }
@@ -1311,7 +1318,7 @@ async function submitGuess() {
   const button = $('#guess-submit');
   if (button) {
     button.disabled = true;
-    button.textContent = '落子中…';
+    button.textContent = '落笔中…';
   }
 
   try {
@@ -1329,7 +1336,7 @@ async function submitGuess() {
     if (liveButton && liveButton.isConnected) {
       const stillPlaying = app.state && app.state.round.status === 'playing';
       liveButton.disabled = !stillPlaying;
-      liveButton.textContent = '落子';
+      liveButton.textContent = '落笔';
       updateGuessCount();
     }
   }
@@ -1356,7 +1363,7 @@ async function submitPuzzle() {
     return false;
   }
   if (clean.count !== total) {
-    if (errorEl) errorEl.textContent = `整联要 ${total} 个字（上下句各 ${len}），现在是 ${clean.count} 个。`;
+    if (errorEl) errorEl.textContent = `整联要 ${total} 个字，现在是 ${clean.count} 个。`;
     input?.focus();
     return false;
   }
@@ -1373,7 +1380,7 @@ async function submitPuzzle() {
     const data = await roomRequest('puzzle', { text: raw, length: len });
     app.draftPuzzle = '';
     applyState(data.state);
-    toast('联已挂出，等大家落子。');
+    toast('联已挂出，等大家落笔。');
     return true;
   } catch (err) {
     if (errorEl) errorEl.textContent = err.message;
@@ -1441,8 +1448,8 @@ function confirmEndRound() {
   const hasSolver = app.state.players.some(p => p.outcome === 'solved');
   const body = active > 0
     ? `<p>还有 <b>${active}</b> 人没结束。强制结束后会直接揭晓；${hasSolver
-      ? '已经有猜中者，结束时会由第一个猜中的人接任房主。'
-      : '目前还没有人猜中，结束后房主不变。'}</p>`
+      ? '已经有猜中者，结束时会由第一个猜中的人接任席主。'
+      : '目前还没有人猜中，结束后席主不变。'}</p>`
     : '<p>席间还没有其他人猜题。结束后会揭晓谜底。</p>';
   openDialog({
     eyebrow: '结束',
@@ -1485,16 +1492,16 @@ function openHistory(playerId) {
   const player = st.players.find(p => p.id === playerId);
   if (!player) return;
   if (!canViewHistory(player)) {
-    toast('本局结束后才能查看 TA 的落子。', 'error');
+    toast('本局结束后才能查看 TA 的落笔。', 'error');
     return;
   }
   const guesses = st.round.guesses.filter(g => g.playerId === playerId);
   const body = guesses.length
     ? `<div class="history-list">${guesses.map(g => guessRowMarkup(g)).join('')}</div>`
-    : '<p>TA 还没有落子。</p>';
+    : '<p>TA 还没有落笔。</p>';
   openDialog({
     eyebrow: '猜测历史',
-    title: `${player.name} 的落子`,
+    title: `${player.name} 的落笔`,
     body,
     confirmLabel: '知道了',
     showCancel: false,
@@ -1507,7 +1514,7 @@ function confirmTransfer(targetId) {
   openDialog({
     eyebrow: '传位',
     title: `把出题权交给${target.name}？`,
-    body: '<p>交出后，你坐回猜题席。开局之前，新的房主还可以继续把出题权交给别人。</p>',
+    body: '<p>交出后，你坐回猜题席。开局之前，新的席主还可以继续把出题权交给别人。</p>',
     confirmLabel: '交给 TA',
     cancelLabel: '再想想',
     onConfirm: async () => {
@@ -1529,7 +1536,7 @@ function confirmLeave() {
     eyebrow: '离席',
     title: '这一席，先坐到这儿？',
     body: isHost
-      ? '<p>你是这一席的房主。离席后，出题权会交给下一位在席的人；这一局的落子会留在纸上。</p>'
+      ? '<p>你是这一席的席主。离席后，出题权会交给下一位在席的人；这一局的落笔会留在纸上。</p>'
       : '<p>离席后，你的位置会空出来。这一局已经落下的字，仍会留在这席的纸上。</p>',
     confirmLabel: '离席',
     cancelLabel: '再坐一会儿',
@@ -1657,11 +1664,11 @@ async function copyText(text) {
 function openHelp() {
   const rules = `
     <ul class="modal-rules">
-      <li><span class="rule-num">1</span><span>房主选五言或七言，写下完整一联：上下句各 5 或 7 字，整联连续写在一个输入框里，前 5/7 字是上句。其余人各猜完整一联，标点与空格会被洗净。房主不猜自己的题。</span></li>
+      <li><span class="rule-num">1</span><span>席主选五言或七言，写下完整一联，整联连续写在一个输入框里。其余人各猜完整一联，标点与空格会被洗净。席主不猜自己的题。</span></li>
       <li><span class="rule-num">2</span><span>每落一联，整联一起判色：<b>× 无此字</b>，<b>◐ 有字但错位</b>，<b>✓ 字位皆对</b>。字出现在另一句、位置不同也会标 ◐；两句都全对才算猜中。</span></li>
-      <li><span class="rule-num">3</span><span>每人猜测次数不限。猜中或放弃会结束你自己的本局；所有猜题人都结束，或房主强制结束，本局才结束。房主强制结束时，若已有人猜中，第一个猜中的人接任房主；否则房主不变。</span></li>
-      <li><span class="rule-num">4</span><span>已结束的人可以查看任何人的落子；还在猜的人只能查看还在猜的人的落子。放弃会立刻看到答案。</span></li>
-      <li><span class="rule-num">5</span><span>邀请码是同一席的钥匙，把入席链接发给朋友即可。开局前房主可以把出题权交给别人。</span></li>
+      <li><span class="rule-num">3</span><span>每人猜测次数不限。猜中或放弃会结束你自己的本局；所有猜题人都结束，或席主强制结束，本局才结束。席主强制结束时，若已有人猜中，第一个猜中的人接任席主；否则席主不变。</span></li>
+      <li><span class="rule-num">4</span><span>已结束的人可以查看任何人的落笔；还在猜的人只能查看还在猜的人的落笔。放弃会立刻看到答案。</span></li>
+      <li><span class="rule-num">5</span><span>邀请码是同一席的钥匙，把入席链接发给朋友即可。开局前席主可以把出题权交给别人。</span></li>
     </ul>
     <div class="modal-legend">
       <span class="legend-pair"><span class="mini-tile absent">×</span> 无此字</span>

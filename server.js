@@ -463,7 +463,7 @@ export async function createGameServer(options = {}) {
       startedAt: now(),
     };
     room.usedAnswers.add(coupletKey(answerText.upper, answerText.lower));
-    addEvent(room, 'start', `第 ${room.round.number} 局 · ${len === 5 ? '五言' : '七言'} · 上下句各${len}字 · 开题`);
+    addEvent(room, 'start', `第 ${room.round.number} 局 · ${len === 5 ? '五言' : '七言'} · 开题`);
     if (byBot) addEvent(room, 'bot', `${BOT_NAME} 把谜底压在了纸下`);
   }
 
@@ -499,7 +499,7 @@ export async function createGameServer(options = {}) {
     if (winner) {
       room.round.winnerId = winner.id;
       room.hostId = winner.id;
-      addEvent(room, 'win', `${winner.name} 第一个猜中，成为新房主`);
+      addEvent(room, 'win', `${winner.name} 第一个猜中，成为新席主`);
     } else {
       room.round.winnerId = null;
       addEvent(room, 'end', '本局结束，无人猜中');
@@ -752,7 +752,7 @@ export async function createGameServer(options = {}) {
             });
           }
           if (whole.count !== len * 2) {
-            throw new HttpError(400, 'wrong_length', `整联要 ${len * 2} 个字（上下句各 ${len}），你给了 ${whole.count} 个。`, {
+            throw new HttpError(400, 'wrong_length', `整联要 ${len * 2} 个字，你给了 ${whole.count} 个。`, {
               cleaned: whole.text,
               expected: len * 2,
             });
@@ -862,7 +862,7 @@ export async function createGameServer(options = {}) {
             throw new HttpError(400, 'invalid_chars', '谜底只能有汉字。', { cleaned: whole.text });
           }
           if (whole.count !== length * 2) {
-            throw new HttpError(400, 'wrong_length', `整联要 ${length * 2} 个字（上下句各 ${length}），现在是 ${whole.count} 个。`, {
+            throw new HttpError(400, 'wrong_length', `整联要 ${length * 2} 个字，现在是 ${whole.count} 个。`, {
               cleaned: whole.text,
               expected: length * 2,
             });
@@ -908,7 +908,7 @@ export async function createGameServer(options = {}) {
       if (action === 'host' && req.method === 'POST') {
         requireHost(room, player);
         if (room.round.status === 'playing') {
-          throw new HttpError(409, 'playing', '开局后不能传位；猜中的人自然会成为房主。');
+          throw new HttpError(409, 'playing', '开局后不能传位；猜中的人自然会成为席主。');
         }
         const target = room.players.get(String(body.targetId || ''));
         if (!target || target.isBot || target.id === player.id) {
