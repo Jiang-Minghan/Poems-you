@@ -908,6 +908,105 @@ html[data-theme="dark"] .grain { mix-blend-mode: screen; opacity: calc(var(--c-n
   grid-template-columns: repeat(8, minmax(0, 1fr));
   gap: 4px;
 }
+
+/* ---------- chat ---------- */
+
+.chat-panel { display: flex; flex-direction: column; }
+.chat-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  max-height: 184px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.chat-line {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.chat-line.is-me .chat-text { color: var(--c-accent); }
+.chat-meta {
+  font-size: 9px;
+  color: var(--c-inkSoft);
+  opacity: 0.72;
+  letter-spacing: 0.04em;
+}
+.chat-text {
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--c-ink);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.chat-empty {
+  font-size: 10.5px;
+  color: var(--c-inkSoft);
+  opacity: 0.8;
+}
+.chat-form {
+  display: flex;
+  gap: 6px;
+  margin-top: 11px;
+}
+.chat-form input {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--c-line);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--c-paper2) 80%, transparent);
+  font-size: 12px;
+}
+.chat-form input:focus {
+  border-color: var(--c-accent);
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-accent) 10%, transparent);
+}
+.chat-form .btn {
+  height: 34px;
+  padding: 0 11px;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+}
+
+/* ---------- host transfer ---------- */
+
+.transfer-action {
+  border-color: color-mix(in srgb, var(--c-accent) 58%, var(--c-line));
+  background: color-mix(in srgb, var(--c-accent) 13%, var(--c-paper));
+  color: var(--c-accent);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+.transfer-action:hover {
+  background: color-mix(in srgb, var(--c-accent) 20%, var(--c-paper));
+  border-color: var(--c-accent);
+}
+.transfer-pick {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 14px;
+  font-size: 11px;
+  color: var(--c-inkSoft);
+}
+.transfer-pick select {
+  width: 100%;
+  height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--c-line);
+  border-radius: 9px;
+  background: var(--c-paper);
+  color: var(--c-ink);
+  font: inherit;
+}
+
 .swatch {
   position: relative;
   height: 24px;
@@ -1545,6 +1644,7 @@ html[data-theme="dark"] .grain { mix-blend-mode: screen; opacity: calc(var(--c-n
 
 .setup-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
   gap: 9px;

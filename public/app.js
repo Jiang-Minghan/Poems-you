@@ -31,6 +31,7 @@ const app = {
   connected: false,
   pendingGuess: false,
   pendingPuzzle: false,
+  pendingChat: false,
   actionPending: false,
   dialogBusy: false,
   composing: false,
@@ -182,7 +183,7 @@ function applyPalette(index, animate = true) {
   if (themeMeta && palette.vars?.bg) themeMeta.setAttribute('content', palette.vars.bg);
 
   const nameEl = $('#palette-name');
-  if (nameEl) nameEl.textContent = `${safe + 1}/${app.palettes.length} · ${palette.name}`;
+  if (nameEl) nameEl.textContent = palette.name;
 
   if (animate && changed) {
     document.body.classList.remove('palette-shift');
@@ -215,20 +216,20 @@ function renderSwatches() {
          style="${paletteGradient(p)}"
          role="img"
          aria-label="${escAttr(`第 ${i + 1} 组，${p.name}`)}"
-         title="${escAttr(`${i + 1}. ${p.name} · ${p.sub || ''}`)}">
+         title="${escAttr(p.name)}">
     </div>`).join('');
   const active = app.palettes[app.paletteIndex];
   const nameEl = $('#palette-name');
-  if (nameEl && active) nameEl.textContent = `${app.paletteIndex + 1}/${app.palettes.length} · ${active.name}`;
+  if (nameEl && active) nameEl.textContent = active.name;
 }
 
 function paletteGridMarkup() {
   if (!app.palettes.length) return '';
   return `<div class="modal-palette-grid">
     ${app.palettes.map((p, i) => `
-      <div class="modal-palette ${i === app.paletteIndex ? 'is-active' : ''}" title="${escAttr(`${p.name} · ${p.sub || ''}`)}">
+      <div class="modal-palette ${i === app.paletteIndex ? 'is-active' : ''}" title="${escAttr(p.name)}">
         <div class="modal-palette-strip" style="${paletteGradient(p)}"></div>
-        <span>${i + 1}. ${esc(p.name)}</span>
+        <span>${esc(p.name)}</span>
       </div>`).join('')}
   </div>`;
 }
@@ -423,8 +424,11 @@ function enterRoom(data, code) {
   app.setupLength = data.state.round.length === 5 ? 5 : 7;
   app.pendingGuess = false;
   app.pendingPuzzle = false;
+  app.pendingChat = false;
   app.pendingComposeRender = false;
   if (app.closeDialog) app.closeDialog();
+  const chatInput = $('#chat-input');
+  if (chatInput) chatInput.value = '';
 
   applyPalette(app.paletteIndex, false);
   $('#join-code').value = code;
@@ -615,6 +619,7 @@ function renderRoom(opts = {}) {
   $('#player-count').textContent = playerCountText(st);
   renderPlayers();
   renderEvents();
+  renderChat();
   renderSwatches();
   const hint = hostHint();
   $('#host-hint').textContent = hint;
@@ -635,7 +640,7 @@ function hostHint() {
   }
   if (st.round.status === 'playing') {
     if (isHost) return '你在出题席。等所有人猜完或放弃，或直接结束本局。';
-    if (st.round.viewer?.canSeeAll) return '你已结束本局，可以查看所有人的落笔。';
+    if (st.round.viewer?.canSeeAll) return '你已结束本局，可以查看所有人的笔迹。';
     return '还在猜的人，只能查看还在猜的人的落笔。';
   }
   return isHost ? '可以再开一局，或把出题权交出去。' : `等 ${st.hostName || '席主'} 铺开下一局。`;
@@ -654,20 +659,13 @@ function renderPlayers() {
   const st = app.state;
   const host = $('#players-list');
   if (!host) return;
-  const isHost = st.hostId === app.meId;
-  const canTransfer = isHost && st.round.status !== 'playing';
-
   host.innerHTML = st.players.map(p => {
     const mine = p.id === app.meId;
     const offline = !p.isBot && !p.online;
     const isPlayerHost = p.id === st.hostId;
     const sub = playerSubline(p, st);
     let action = '';
-    if (canTransfer && !mine && !p.isBot && p.online) {
-      action = `<button type="button" class="transfer-btn" data-action="transfer"
-                 data-target="${escAttr(p.id)}"
-                 title="${escAttr(`把出题权交给 ${p.name}`)}">传位</button>`;
-    } else if (canViewHistory(p)) {
+    if (canViewHistory(p)) {
       action = `<button type="button" class="transfer-btn history-btn" data-action="history"
                  data-player="${escAttr(p.id)}"
                  title="${escAttr(`查看 ${p.name} 的猜测历史`)}">历史</button>`;
@@ -729,6 +727,25 @@ function formatTime(ts) {
       hour: '2-digit', minute: '2-digit', hour12: false,
     });
   } catch { return ''; }
+}
+
+function renderChat() {
+  const list = $('#chat-list');
+  if (!list) return;
+  const messages = app.state?.chat || [];
+  const atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 28;
+  const count = $('#chat-count');
+  if (count) count.textContent = messages.length ? `${messages.length} 句` : '安静';
+  if (!messages.length) {
+    list.innerHTML = '<li class="chat-empty">还没有人说话。</li>';
+    return;
+  }
+  list.innerHTML = messages.map(m => `
+    <li class="chat-line ${m.playerId === app.meId ? 'is-me' : ''}">
+      <span class="chat-meta">${esc(m.playerName)} · ${formatTime(m.at)}</span>
+      <span class="chat-text">${esc(m.text)}</span>
+    </li>`).join('');
+  if (atBottom) list.scrollTop = list.scrollHeight;
 }
 
 function renderStage() {
@@ -793,6 +810,17 @@ function captureFocus() {
   return { id: el.id, start: el.selectionStart ?? 0, end: el.selectionEnd ?? 0 };
 }
 
+function transferCandidates() {
+  const st = app.state;
+  if (!st) return [];
+  return st.players.filter(p => !p.isBot && p.online && p.id !== st.hostId);
+}
+
+function transferActionMarkup() {
+  if (!transferCandidates().length) return '';
+  return '<button type="button" class="btn transfer-action" data-action="transfer">传位于客</button>';
+}
+
 function setupMarkup() {
   const st = app.state;
   const r = st.round;
@@ -825,6 +853,7 @@ function setupMarkup() {
             <svg class="icon"><use href="#i-shuffle"></use></svg>
             借一联名句
           </button>
+          ${transferActionMarkup()}
           <button type="submit" class="btn primary" id="puzzle-submit" ${app.pendingPuzzle ? 'disabled' : ''}>
             ${app.pendingPuzzle ? '封联中…' : '挂出此联'}
           </button>
@@ -969,6 +998,7 @@ function revealMarkup() {
   if (isHost) {
     actions += `<button type="button" class="btn primary" data-action="next">再出一联
       <svg class="icon"><use href="#i-arrow"></use></svg></button>`;
+    actions += transferActionMarkup();
   } else if (hostIsBot) {
     actions += `<button type="button" class="btn primary" data-action="poet">请诗灵再出一联
       <svg class="icon"><use href="#i-arrow"></use></svg></button>`;
@@ -1195,12 +1225,12 @@ function bindRoom() {
     if (btn.dataset.action === 'history') {
       event.preventDefault();
       openHistory(btn.dataset.player);
-      return;
     }
-    if (btn.dataset.action !== 'transfer') return;
+  });
+
+  $('#chat-form').addEventListener('submit', event => {
     event.preventDefault();
-    if (app.actionPending || app.pendingGuess || app.pendingPuzzle) return;
-    confirmTransfer(btn.dataset.target);
+    sendChat();
   });
 
   document.addEventListener('visibilitychange', () => {
@@ -1242,7 +1272,7 @@ function onStageClick(event) {
     summonPoet();
   } else if (action === 'transfer') {
     event.preventDefault();
-    confirmTransfer(btn.dataset.target);
+    openTransferDialog();
   } else if (action === 'giveup') {
     event.preventDefault();
     confirmGiveUp();
@@ -1285,6 +1315,31 @@ function setSetupLength(len) {
   if (el) {
     el.focus({ preventScroll: true });
     try { el.setSelectionRange(el.value.length, el.value.length); } catch {}
+  }
+}
+
+async function sendChat() {
+  if (app.pendingChat || !app.state || !app.roomCode) return;
+  const input = $('#chat-input');
+  const text = input?.value.trim() || '';
+  if (!text) return;
+  app.pendingChat = true;
+  const button = $('#chat-submit');
+  if (button) button.disabled = true;
+  try {
+    const data = await roomRequest('chat', { text });
+    if (input) {
+      input.value = '';
+      input.focus({ preventScroll: true });
+    }
+    applyState(data.state);
+  } catch (err) {
+    toast(err.message, 'error');
+    input?.focus({ preventScroll: true });
+  } finally {
+    app.pendingChat = false;
+    const live = $('#chat-submit');
+    if (live) live.disabled = false;
   }
 }
 
@@ -1508,19 +1563,35 @@ function openHistory(playerId) {
   });
 }
 
-function confirmTransfer(targetId) {
-  const target = app.state?.players.find(p => p.id === targetId);
-  if (!target) return;
+function openTransferDialog() {
+  const candidates = transferCandidates();
+  if (!candidates.length) {
+    toast('席间暂时没有可接位的朋友。', 'error');
+    return;
+  }
   openDialog({
     eyebrow: '传位',
-    title: `把出题权交给${target.name}？`,
-    body: '<p>交出后，你坐回猜题席。开局之前，新的席主还可以继续把出题权交给别人。</p>',
-    confirmLabel: '交给 TA',
+    title: '传位于客',
+    body: `
+      <p>选一位在席的朋友，接过出题权。</p>
+      <label class="transfer-pick">
+        <span>接位的人</span>
+        <select id="transfer-select">
+          ${candidates.map(p => `<option value="${escAttr(p.id)}">${esc(p.name)}</option>`).join('')}
+        </select>
+      </label>`,
+    confirmLabel: '传位于客',
     cancelLabel: '再想想',
     onConfirm: async () => {
+      const targetId = $('#transfer-select')?.value;
+      const target = app.state?.players.find(p => p.id === targetId);
+      if (!target) {
+        toast('选一位在席的朋友。', 'error');
+        return false;
+      }
       const data = await roomRequest('host', { targetId });
       applyState(data.state);
-      toast(`出题权已交给 ${target.name}。`);
+      toast(`已传位于 ${target.name}。`);
       return true;
     },
   });
@@ -1675,7 +1746,7 @@ function openHelp() {
       <span class="legend-pair"><span class="mini-tile present">◐</span> 有字错位</span>
       <span class="legend-pair"><span class="mini-tile correct">✓</span> 字位皆对</span>
     </div>
-    <p style="margin-top:18px"><b>色卡</b> — 每开一局轮换一组，当前是第 ${app.paletteIndex + 1} 组「${esc(app.palettes[app.paletteIndex]?.name || '')}」。</p>
+    <p style="margin-top:18px"><b>色卡</b> — 当前是「${esc(app.palettes[app.paletteIndex]?.name || '')}」。</p>
     ${paletteGridMarkup()}
     ${app.roomCode ? `<p style="margin-top:16px">这一席的邀请码：<b>${esc(app.roomCode)}</b>。</p>` : ''}
   `;

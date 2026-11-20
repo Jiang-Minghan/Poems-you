@@ -176,7 +176,19 @@
               <span id="palette-name" class="panel-count"></span>
             </div>
             <div id="palette-swatches" class="palette-swatches"></div>
-            <p class="panel-note">每开一局，换一组光。</p>
+          </section>
+
+          <section id="chat-panel" class="panel paper-card chat-panel">
+            <div class="panel-head">
+              <h2>席间闲话</h2>
+              <span id="chat-count" class="panel-count"></span>
+            </div>
+            <ol id="chat-list" class="chat-list"></ol>
+            <form id="chat-form" class="chat-form" novalidate>
+              <input id="chat-input" type="text" maxlength="80" autocomplete="off"
+                     placeholder="说一句…" aria-label="席间闲话">
+              <button type="submit" class="btn quiet" id="chat-submit">送出</button>
+            </form>
           </section>
         </aside>
       </main>

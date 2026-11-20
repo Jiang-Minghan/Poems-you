@@ -52,6 +52,13 @@ function normalizeName(raw) {
   ).slice(0, NAME_MAX).join('').trim();
 }
 
+function normalizeChat(raw) {
+  if (typeof raw !== 'string') return '';
+  return Array.from(
+    raw.normalize('NFC').replace(/[\p{C}]/gu, ' ').replace(/\s+/g, ' ').trim()
+  ).slice(0, 80).join('').trim();
+}
+
 function validToken(raw) {
   return typeof raw === 'string' && /^[A-Za-z0-9_-]{16,80}$/.test(raw);
 }
@@ -308,6 +315,7 @@ export async function createGameServer(options = {}) {
       players,
       round: publicRound(room, meta, viewer),
       events: room.events.slice(-8),
+      chat: (room.chat || []).slice(-40),
       paletteIndex: room.paletteIndex,
       serverNow: now(),
     };
@@ -379,6 +387,7 @@ export async function createGameServer(options = {}) {
       players: new Map(),
       round: emptyRound(),
       events: [],
+      chat: [],
       streams: new Set(),
       usedAnswers: new Set(),
     };
@@ -728,6 +737,21 @@ export async function createGameServer(options = {}) {
       }
 
       const player = requirePlayer(room, body.token);
+
+      if (action === 'chat' && req.method === 'POST') {
+        const text = normalizeChat(body.text);
+        if (!text) throw new HttpError(400, 'empty_chat', '写一句话再送出。');
+        room.chat.push({
+          playerId: player.id,
+          playerName: player.name,
+          text,
+          at: now(),
+        });
+        if (room.chat.length > 80) room.chat.splice(0, room.chat.length - 80);
+        room.updatedAt = now();
+        broadcast(room);
+        return sendJson(res, 200, { state: publicState(room, player) });
+      }
 
       if (action === 'guess' && req.method === 'POST') {
         if (room.round.status !== 'playing') {
